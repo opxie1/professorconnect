@@ -42,6 +42,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo>(defaultUserInfo);
   const [emailsGenerated, setEmailsGenerated] = useState(0);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const { toast } = useToast();
 
   // Load user info from localStorage on mount
@@ -192,6 +193,8 @@ const Index = () => {
                     description: "Your details will be used in the email template.",
                   });
                 }}
+                resumeFile={resumeFile}
+                onResumeChange={setResumeFile}
               />
               
               <div className="flex justify-end">
