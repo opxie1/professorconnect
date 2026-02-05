@@ -95,3 +95,40 @@ export function generateGmailDraftUrl(to: string, subject: string, body: string)
   
   return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&su=${encodedSubject}&body=${encodedBody}`;
 }
+
+export interface CreateGmailDraftResponse {
+  success: boolean;
+  draftId?: string;
+  messageId?: string;
+  gmailUrl?: string;
+  error?: string;
+}
+
+export async function createGmailDraft(
+  accessToken: string,
+  to: string,
+  subject: string,
+  body: string,
+  attachmentBase64?: string,
+  attachmentName?: string,
+  attachmentMimeType?: string
+): Promise<CreateGmailDraftResponse> {
+  const { data, error } = await supabase.functions.invoke('create-gmail-draft', {
+    body: { 
+      accessToken, 
+      to, 
+      subject, 
+      body,
+      attachmentBase64,
+      attachmentName,
+      attachmentMimeType
+    },
+  });
+
+  if (error) {
+    console.error('Error creating Gmail draft:', error);
+    return { success: false, error: error.message };
+  }
+
+  return data;
+}
