@@ -8,6 +8,7 @@ import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { FacultyUrlInput } from "@/components/FacultyUrlInput";
 import { ProfessorCard } from "@/components/ProfessorCard";
 import { UserInfoForm, UserInfo } from "@/components/UserInfoForm";
+import { GmailConnection } from "@/components/GmailConnection";
 import { University } from "@/data/universities";
 import { Professor, scrapeFaculty } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -197,6 +198,8 @@ const Index = () => {
                 onResumeChange={setResumeFile}
               />
               
+              <GmailConnection />
+              
               <div className="flex justify-end">
                 <Button
                   size="lg"
@@ -311,6 +314,7 @@ const Index = () => {
                           key={`${professor.name}-${index}`}
                           professor={professor}
                           userInfo={userInfo}
+                          resumeFile={resumeFile}
                           onEmailGenerated={handleEmailGenerated}
                         />
                       ))
@@ -330,6 +334,7 @@ const Index = () => {
                           key={`${professor.name}-${index}`}
                           professor={professor}
                           userInfo={userInfo}
+                          resumeFile={resumeFile}
                           onEmailGenerated={handleEmailGenerated}
                         />
                       ))
