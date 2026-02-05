@@ -39,7 +39,8 @@ Additionally, I have attached my resume, which outlines more of my experience an
 
 Hope to hear from you soon.
 
-Sincerely, ${userInfo?.name || '[Your Name]'}`;
+Sincerely,
+${userInfo?.name || '[Your Name]'}`;
 
     return new Response(
       JSON.stringify({ 

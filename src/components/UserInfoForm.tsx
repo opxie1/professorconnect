@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { User, School, MapPin, Briefcase, Trophy, Clock, Save } from "lucide-react";
+import { User, School, MapPin, Briefcase, Trophy, Clock, Save, FileText, Upload, X } from "lucide-react";
 
 export interface UserInfo {
   name: string;
@@ -12,19 +12,39 @@ export interface UserInfo {
   experience: string;
   achievements: string;
   hoursPerWeek: string;
+  resumeFileName?: string;
 }
 
 interface UserInfoFormProps {
   userInfo: UserInfo;
   onChange: (info: UserInfo) => void;
   onSave?: () => void;
+  onResumeChange?: (file: File | null) => void;
+  resumeFile?: File | null;
 }
 
-export function UserInfoForm({ userInfo, onChange, onSave }: UserInfoFormProps) {
+export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resumeFile }: UserInfoFormProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: keyof UserInfo, value: string) => {
     onChange({ ...userInfo, [field]: value });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (file && file.type === "application/pdf") {
+      onResumeChange?.(file);
+      onChange({ ...userInfo, resumeFileName: file.name });
+    }
+  };
+
+  const handleRemoveResume = () => {
+    onResumeChange?.(null);
+    onChange({ ...userInfo, resumeFileName: undefined });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleSave = () => {
@@ -144,6 +164,53 @@ export function UserInfoForm({ userInfo, onChange, onSave }: UserInfoFormProps) 
             onChange={(e) => handleChange("achievements", e.target.value)}
             rows={4}
           />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            Resume (PDF)
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handleFileChange}
+              className="hidden"
+              id="resume-upload"
+            />
+            {resumeFile || userInfo.resumeFileName ? (
+              <div className="flex-1 flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                <FileText className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium truncate flex-1">
+                  {resumeFile?.name || userInfo.resumeFileName}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveResume}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Choose PDF File
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Note: You'll need to manually attach this resume in Gmail after the draft opens
+          </p>
         </div>
 
         <Button onClick={handleSave} className="w-full gap-2">
