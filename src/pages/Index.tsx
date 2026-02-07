@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -107,14 +108,18 @@ const Index = () => {
       <header className="gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-12 sm:py-16">
           <div className="max-w-3xl mx-auto text-center space-y-4">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
-                <GraduationCap className="h-7 w-7" />
-              </div>
+          <div className="flex items-center justify-center gap-2 mb-4">
+              <Link to="/" className="flex items-center gap-2 group">
+                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center transition-transform group-hover:scale-105">
+                  <GraduationCap className="h-7 w-7" />
+                </div>
+              </Link>
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-              ProfessorConnect
-            </h1>
+            <Link to="/" className="hover:opacity-80 transition-opacity">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
+                ProfessorConnect
+              </h1>
+            </Link>
             <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto">
               Automate your cold-email outreach to professors. Find research opportunities, internships, and mentorship.
             </p>
