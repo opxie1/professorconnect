@@ -24,7 +24,7 @@ export function GmailConnection({ onConnectionChange, className }: GmailConnecti
     const checkConnection = () => {
       const isConnected = isGmailConnected();
       const email = getGmailUserEmail();
-      const hasClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      const hasClientId = true;
       
       setConnected(isConnected);
       setUserEmail(email);
