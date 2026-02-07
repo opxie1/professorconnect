@@ -51,19 +51,7 @@ export function GmailConnection({ onConnectionChange, className }: GmailConnecti
   };
 
   if (!clientConfigured) {
-    return (
-      <Card className={cn("border-warning/50 bg-warning/10", className)}>
-        <CardContent className="p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-warning shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">Gmail API not configured</p>
-            <p className="text-xs text-muted-foreground">
-              Add VITE_GOOGLE_CLIENT_ID to enable auto-attachment
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   if (connected) {
