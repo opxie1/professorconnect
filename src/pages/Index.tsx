@@ -356,7 +356,7 @@ const Index = () => {
       <footer className="border-t border-border py-8 mt-12">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            ProfessorConnect — Helping students find research opportunities
+            ProfessorConnect — Helping students find research opportunities | Inquiries: ethanxie@udel.edu
           </p>
         </div>
       </footer>
