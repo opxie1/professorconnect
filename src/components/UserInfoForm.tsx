@@ -209,7 +209,7 @@ export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resum
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Note: You'll need to manually attach this resume in Gmail after the draft opens
+            Your resume will be auto-attached when Gmail is connected
           </p>
         </div>
 
