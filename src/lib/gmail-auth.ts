@@ -1,7 +1,7 @@
 // Gmail OAuth configuration
 // Uses Google OAuth 2.0 with Gmail compose scope
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = '395015459000-gtqtea4on362rtukvrfhesp2agt5fq2h.apps.googleusercontent.com';
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.compose',
   'https://www.googleapis.com/auth/userinfo.email',
