@@ -113,10 +113,16 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
         });
         onEmailGenerated?.(professor, result.subject, result.body);
         
-        toast({
-          title: "Email generated",
-          description: "Your personalized email is ready!",
-        });
+        // Automatically open Gmail with the generated email
+        if (professor.email) {
+          await openInGmail(professor.email, result.subject, result.body);
+        } else {
+          toast({
+            title: "Email generated",
+            description: "Email is ready but no professor email address was found.",
+            variant: "destructive",
+          });
+        }
       } else {
         throw new Error(result.error || "Failed to generate email");
       }
@@ -132,55 +138,23 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleOpenGmail = async () => {
-    if (!emailData || !professor.email) {
-      toast({
-        title: "Missing information",
-        description: "Email or recipient address not available.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if Gmail is connected and we have a resume to attach
+  const openInGmail = async (to: string, subject: string, body: string) => {
     if (isGmailConnected() && resumeFile) {
       setIsCreatingDraft(true);
       try {
         const accessToken = getGmailAccessToken();
-        if (!accessToken) {
-          throw new Error("Gmail not connected");
-        }
+        if (!accessToken) throw new Error("Gmail not connected");
 
         const attachmentBase64 = await fileToBase64(resumeFile);
-        
         const result = await createGmailDraft(
-          accessToken,
-          professor.email,
-          emailData.subject,
-          emailData.body,
-          attachmentBase64,
-          resumeFile.name,
-          'application/pdf'
+          accessToken, to, subject, body,
+          attachmentBase64, resumeFile.name, 'application/pdf'
         );
 
         if (result.success && result.gmailUrl) {
           window.open(result.gmailUrl, "_blank");
           toast({
-            title: "Draft created with attachment!",
+            title: "Draft created with resume!",
             description: "Your email draft with resume is ready in Gmail.",
           });
         } else {
@@ -190,24 +164,36 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
         console.error("Error creating Gmail draft:", error);
         toast({
           title: "Draft creation failed",
-          description: "Falling back to compose URL without attachment.",
+          description: "Opening Gmail compose instead.",
           variant: "destructive",
         });
-        // Fallback to regular Gmail compose
-        const gmailUrl = generateGmailDraftUrl(professor.email, emailData.subject, emailData.body);
+        const gmailUrl = generateGmailDraftUrl(to, subject, body);
         window.open(gmailUrl, "_blank");
       } finally {
         setIsCreatingDraft(false);
       }
     } else {
-      // No Gmail connection or no resume - use regular compose URL
-      const gmailUrl = generateGmailDraftUrl(professor.email, emailData.subject, emailData.body);
+      const gmailUrl = generateGmailDraftUrl(to, subject, body);
       window.open(gmailUrl, "_blank");
+      toast({
+        title: "Opened in Gmail",
+        description: "Your email is ready — just attach your resume and send!",
+      });
     }
   };
 
-  const gmailConnected = isGmailConnected();
-  const hasResume = !!resumeFile;
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
   return (
     <Card className={cn(
@@ -308,38 +294,32 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                 <Button
                   size="sm"
                   onClick={handleGenerateEmail}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isCreatingDraft}
                   className="gap-2"
                 >
-                  {isGenerating ? (
+                  {isGenerating || isCreatingDraft ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Mail className="h-4 w-4" />
                   )}
-                  Generate Email
+                  {isCreatingDraft ? "Opening Gmail..." : isGenerating ? "Generating..." : "Generate & Open in Gmail"}
                 </Button>
               )}
 
               {emailData && professor.email && (
                 <Button
                   size="sm"
-                  onClick={handleOpenGmail}
+                  variant="outline"
+                  onClick={() => openInGmail(professor.email!, emailData.subject, emailData.body)}
                   disabled={isCreatingDraft}
-                  className={cn(
-                    "gap-2",
-                    gmailConnected && hasResume 
-                      ? "bg-success hover:bg-success/90" 
-                      : "bg-primary hover:bg-primary/90"
-                  )}
+                  className="gap-2"
                 >
                   {isCreatingDraft ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : gmailConnected && hasResume ? (
-                    <Paperclip className="h-4 w-4" />
                   ) : (
-                    <CheckCircle2 className="h-4 w-4" />
+                    <Mail className="h-4 w-4" />
                   )}
-                  {gmailConnected && hasResume ? "Create Draft with Resume" : "Open in Gmail"}
+                  Reopen in Gmail
                 </Button>
               )}
             </div>
