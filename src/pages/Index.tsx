@@ -45,6 +45,9 @@ const Index = () => {
   const [userInfo, setUserInfo] = useState<UserInfo>(defaultUserInfo);
   const [emailsGenerated, setEmailsGenerated] = useState(0);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [analyzeQueue, setAnalyzeQueue] = useState<Set<string>>(new Set());
+  const [analyzedCount, setAnalyzedCount] = useState(0);
+  const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const { toast } = useToast();
 
   // Load user info from localStorage on mount
@@ -97,6 +100,31 @@ const Index = () => {
 
   const handleEmailGenerated = () => {
     setEmailsGenerated((prev) => prev + 1);
+  };
+
+  const handleAnalyzeAll = () => {
+    const names = new Set(researchActiveProfessors.map((p) => p.name));
+    setAnalyzeQueue(names);
+    setAnalyzedCount(0);
+    setIsAnalyzingAll(true);
+    toast({
+      title: "Analyzing all professors",
+      description: `Starting analysis for ${names.size} research-active professors...`,
+    });
+  };
+
+  const handleAnalysisComplete = (professorName: string) => {
+    setAnalyzedCount((prev) => {
+      const next = prev + 1;
+      if (next >= analyzeQueue.size) {
+        setIsAnalyzingAll(false);
+        toast({
+          title: "All analyses complete",
+          description: `Finished analyzing ${analyzeQueue.size} professors.`,
+        });
+      }
+      return next;
+    });
   };
 
   const researchActiveProfessors = professors.filter((p) => p.isResearchActive);
@@ -309,6 +337,27 @@ const Index = () => {
 
                 <TabsContent value="research" className="mt-6">
                   <div className="grid gap-4">
+                    {researchActiveProfessors.length > 0 && (
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">
+                          {isAnalyzingAll && `Analyzing... ${analyzedCount}/${analyzeQueue.size}`}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleAnalyzeAll}
+                          disabled={isAnalyzingAll}
+                          className="gap-2"
+                        >
+                          {isAnalyzingAll ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4" />
+                          )}
+                          {isAnalyzingAll ? `Analyzing ${analyzedCount}/${analyzeQueue.size}` : "Analyze All"}
+                        </Button>
+                      </div>
+                    )}
                     {researchActiveProfessors.length === 0 ? (
                       <Card className="p-8 text-center">
                         <p className="text-muted-foreground">No research-active professors found.</p>
@@ -321,6 +370,8 @@ const Index = () => {
                           userInfo={userInfo}
                           resumeFile={resumeFile}
                           onEmailGenerated={handleEmailGenerated}
+                          shouldAnalyze={analyzeQueue.has(professor.name)}
+                          onAnalysisComplete={handleAnalysisComplete}
                         />
                       ))
                     )}
