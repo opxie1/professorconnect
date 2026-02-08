@@ -24,7 +24,7 @@ interface UserInfoFormProps {
 }
 
 export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resumeFile }: UserInfoFormProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(!userInfo.name);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: keyof UserInfo, value: string) => {

@@ -69,7 +69,7 @@ serve(async (req) => {
     }
 
     // Encode the email in base64url format (required by Gmail API)
-    const rawMessage = base64Encode(new TextEncoder().encode(emailContent))
+    const rawMessage = base64Encode(new TextEncoder().encode(emailContent).buffer as ArrayBuffer)
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
