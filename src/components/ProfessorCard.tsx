@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,9 +30,11 @@ interface ProfessorCardProps {
   };
   resumeFile?: File | null;
   onEmailGenerated?: (professor: Professor, subject: string, body: string) => void;
+  shouldAnalyze?: boolean;
+  onAnalysisComplete?: (professorName: string) => void;
 }
 
-export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerated }: ProfessorCardProps) {
+export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerated, shouldAnalyze, onAnalysisComplete }: ProfessorCardProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
@@ -46,7 +48,16 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
     body: string;
   } | null>(null);
   const { toast } = useToast();
+  const hasTriggeredAnalyze = useRef(false);
 
+  useEffect(() => {
+    if (shouldAnalyze && !researchData && !isAnalyzing && !hasTriggeredAnalyze.current) {
+      hasTriggeredAnalyze.current = true;
+      handleAnalyze().then(() => {
+        onAnalysisComplete?.(professor.name);
+      });
+    }
+  }, [shouldAnalyze]);
   const handleAnalyze = async () => {
     if (!professor.profileUrl) {
       toast({
