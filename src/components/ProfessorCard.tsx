@@ -51,11 +51,14 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
   const hasTriggeredAnalyze = useRef(false);
 
   useEffect(() => {
-    if (shouldAnalyze && !researchData && !isAnalyzing && !hasTriggeredAnalyze.current) {
+    if (shouldAnalyze && !researchData && !isAnalyzing && !hasTriggeredAnalyze.current && professor.profileUrl) {
       hasTriggeredAnalyze.current = true;
       handleAnalyze().then(() => {
         onAnalysisComplete?.(professor.name);
       });
+    } else if (shouldAnalyze && !professor.profileUrl && !hasTriggeredAnalyze.current) {
+      hasTriggeredAnalyze.current = true;
+      onAnalysisComplete?.(professor.name);
     }
   }, [shouldAnalyze]);
   const handleAnalyze = async () => {
