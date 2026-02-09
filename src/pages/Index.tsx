@@ -12,6 +12,7 @@ import { UserInfoForm, UserInfo } from "@/components/UserInfoForm";
 import { GmailConnection } from "@/components/GmailConnection";
 import { University } from "@/data/universities";
 import { Professor, scrapeFaculty } from "@/lib/api";
+import { ScrapingProgress } from "@/components/ScrapingProgress";
 import { useToast } from "@/components/ui/use-toast";
 import { 
   Search, 
@@ -301,6 +302,8 @@ const Index = () => {
                       </>
                     )}
                   </Button>
+
+                  {isLoading && <ScrapingProgress />}
                 </CardContent>
               </Card>
             </div>

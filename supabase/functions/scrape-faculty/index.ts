@@ -21,22 +21,17 @@ async function scrapeUrl(apiKey: string, url: string, useActions = false): Promi
     url,
     formats: ['markdown', 'links'],
     onlyMainContent: true,
-    waitFor: 5000,
+    waitFor: 3000,
   };
 
-  // For main faculty pages, scroll repeatedly to trigger lazy-loading
   if (useActions) {
-    body.actions = [
-      { type: 'wait', milliseconds: 2000 },
-      { type: 'scroll', direction: 'down', amount: 3 },
-      { type: 'wait', milliseconds: 2000 },
-      { type: 'scroll', direction: 'down', amount: 3 },
-      { type: 'wait', milliseconds: 2000 },
-      { type: 'scroll', direction: 'down', amount: 5 },
-      { type: 'wait', milliseconds: 2000 },
-      { type: 'scroll', direction: 'down', amount: 5 },
-      { type: 'wait', milliseconds: 2000 },
-    ];
+    // Aggressive scrolling to load all lazy content
+    const scrollActions: unknown[] = [];
+    for (let i = 0; i < 15; i++) {
+      scrollActions.push({ type: 'scroll', direction: 'down', amount: 10 });
+      scrollActions.push({ type: 'wait', milliseconds: 1500 });
+    }
+    body.actions = scrollActions;
   }
 
   const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
@@ -61,31 +56,35 @@ async function scrapeUrl(apiKey: string, url: string, useActions = false): Promi
 }
 
 async function mapSite(apiKey: string, url: string): Promise<string[]> {
-  // Run multiple map searches to discover more pages
-  const searches = ['faculty people directory professors', 'faculty list members staff'];
+  const searches = [
+    'faculty directory professors people',
+    'faculty members staff department',
+    'professor profile bio research',
+    '',  // empty search to get all pages
+  ];
   const allLinks = new Set<string>();
 
   await Promise.all(searches.map(async (search) => {
     try {
+      const body: Record<string, unknown> = {
+        url,
+        limit: 5000,
+        includeSubdomains: true,
+      };
+      if (search) body.search = search;
+
       const response = await fetch('https://api.firecrawl.dev/v1/map', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          url,
-          search,
-          limit: 500,
-          includeSubdomains: true,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
       if (response.ok && data.links) {
         for (const link of data.links) allLinks.add(link);
-      } else {
-        console.error('Firecrawl map error:', data);
       }
     } catch (err) {
       console.error('Map failed:', err);
@@ -95,133 +94,114 @@ async function mapSite(apiKey: string, url: string): Promise<string[]> {
   return Array.from(allLinks);
 }
 
-function findPaginationUrls(baseUrl: string, allLinks: string[]): string[] {
+function findProfileUrls(baseUrl: string, allLinks: string[]): string[] {
   const base = new URL(baseUrl);
-  const basePath = base.pathname.replace(/\/$/, '');
-  
-  const paginationPatterns = [
-    /[?&]page=\d+/i,
-    /\/page\/\d+/i,
-    /[?&]p=\d+/i,
-    /[?&]offset=\d+/i,
-    /[?&]start=\d+/i,
-    /[?&]pg=\d+/i,
+  const profilePatterns = [
+    /\/faculty\/[^/]+\/?$/i,
+    /\/people\/[^/]+\/?$/i,
+    /\/profile\/[^/]+\/?$/i,
+    /\/faculty-research\/faculty-directory\/[^/]+\/?$/i,
+    /\/directory\/[^/]+\/?$/i,
+    /\/bio\/[^/]+\/?$/i,
+    /\/staff\/[^/]+\/?$/i,
+    /\/members\/[^/]+\/?$/i,
+    /\?profile=/i,
+    /\?id=/i,
+  ];
+
+  const excludePatterns = [
+    /\.(pdf|doc|docx|jpg|jpeg|png|gif|css|js|xml|json)$/i,
+    /\/(news|events|blog|research|publications|courses|programs|admissions|about|contact)\//i,
+    /index\.html$/i,
+    /\/faculty-research\/faculty-directory\/?$/i,
+    /\/faculty-research\/faculty-directory\/index\.html$/i,
   ];
 
   const seen = new Set<string>();
-  seen.add(baseUrl);
-
-  const paginationUrls: string[] = [];
+  const profiles: string[] = [];
 
   for (const link of allLinks) {
     try {
       const linkUrl = new URL(link, baseUrl);
-      const linkPath = linkUrl.pathname.replace(/\/$/, '');
-      
-      // Check if this link is on the same domain
       if (linkUrl.hostname !== base.hostname) continue;
-      
-      // Check if it's a pagination variant of the base URL
-      const isPagination = paginationPatterns.some(p => p.test(link));
-      const isSamePath = linkPath === basePath || linkPath.startsWith(basePath + '/page/');
-      
-      if (isPagination && isSamePath) {
-        const normalized = linkUrl.href;
-        if (!seen.has(normalized)) {
-          seen.add(normalized);
-          paginationUrls.push(normalized);
-        }
-      }
-    } catch {
-      // skip invalid URLs
-    }
-  }
 
-  return paginationUrls;
-}
+      const normalized = linkUrl.origin + linkUrl.pathname.replace(/\/$/, '') + linkUrl.search;
+      if (seen.has(normalized)) continue;
 
-function findRelatedFacultyPages(baseUrl: string, mappedUrls: string[]): string[] {
-  const base = new URL(baseUrl);
-  const basePath = base.pathname.replace(/\/$/, '');
-  
-  const facultyKeywords = ['faculty', 'people', 'staff', 'directory', 'professors', 'members', 'department'];
-  const profileKeywords = ['profile', 'bio', 'cv', 'vitae', 'resume'];
-  const seen = new Set<string>();
-  seen.add(baseUrl);
-  const related: string[] = [];
-
-  for (const link of mappedUrls) {
-    try {
-      const linkUrl = new URL(link);
-      if (linkUrl.hostname !== base.hostname) continue;
+      // Check if it matches a profile pattern
+      const isProfile = profilePatterns.some(p => p.test(linkUrl.pathname + linkUrl.search));
+      const isExcluded = excludePatterns.some(p => p.test(linkUrl.pathname));
       
-      const linkPath = linkUrl.pathname.replace(/\/$/, '');
-      
-      // Skip if it's the same page
-      if (linkPath === basePath) continue;
-      
-      // Skip individual profile pages (they have query params like ?id= or very deep paths)
-      const isProfile = profileKeywords.some(k => linkPath.toLowerCase().includes(k)) || 
-                        linkUrl.search.includes('id=');
-      if (isProfile) continue;
-
-      // Include pages that share a common ancestor or have faculty keywords
-      const isChild = linkPath.startsWith(basePath + '/');
-      const hasFacultyKeyword = facultyKeywords.some(k => linkPath.toLowerCase().includes(k));
-      const pathDepth = linkPath.split('/').filter(Boolean).length;
-      
-      // Allow deeper paths (up to depth 6) as long as they look like listing pages
-      if ((isChild || hasFacultyKeyword) && pathDepth <= 6) {
-        if (!seen.has(link)) {
-          seen.add(link);
-          related.push(link);
-        }
+      if (isProfile && !isExcluded) {
+        seen.add(normalized);
+        profiles.push(normalized);
       }
     } catch {
       // skip
     }
   }
 
-  return related.slice(0, 20);
+  return profiles;
 }
 
-async function extractProfessors(
+function findListingPages(baseUrl: string, allLinks: string[]): string[] {
+  const base = new URL(baseUrl);
+  const basePath = base.pathname.replace(/\/$/, '').replace(/\/index\.html$/, '');
+  const seen = new Set<string>();
+  seen.add(baseUrl);
+  const listings: string[] = [];
+
+  const listingKeywords = ['faculty', 'people', 'staff', 'directory', 'professors', 'members', 'department'];
+  const paginationPatterns = [/[?&]page=\d+/i, /\/page\/\d+/i, /[?&]p=\d+/i, /[?&]offset=\d+/i];
+
+  for (const link of allLinks) {
+    try {
+      const linkUrl = new URL(link, baseUrl);
+      if (linkUrl.hostname !== base.hostname) continue;
+
+      const linkPath = linkUrl.pathname.replace(/\/$/, '').replace(/\/index\.html$/, '');
+      if (linkPath === basePath) continue;
+
+      const isPagination = paginationPatterns.some(p => p.test(link));
+      const isListing = listingKeywords.some(k => linkPath.toLowerCase().includes(k));
+      const pathDepth = linkPath.split('/').filter(Boolean).length;
+
+      if ((isPagination || isListing) && pathDepth <= 5 && !seen.has(link)) {
+        seen.add(link);
+        listings.push(link);
+      }
+    } catch {
+      // skip
+    }
+  }
+
+  return listings.slice(0, 30);
+}
+
+async function extractProfessorsFromProfiles(
   LOVABLE_API_KEY: string,
-  markdown: string,
-  links: string[],
-  pageUrl: string
-): Promise<any[]> {
-  const extractionPrompt = `You are analyzing a university faculty directory page. Extract information about professors/faculty members from this content.
+  profileUrls: string[],
+  department: string | null
+): Promise<Professor[]> {
+  // Extract professor info from URL patterns using AI
+  const prompt = `You are analyzing a list of university faculty profile page URLs. Extract professor names and information from the URL patterns.
 
-For each professor found, extract:
-1. Full name
-2. Email address (if visible)
-3. Profile page URL (from the links provided, match by professor name)
-4. Title/position (e.g., "Professor", "Associate Professor", "Assistant Professor")
-5. Whether they appear to be research-active (NOT emeritus, NOT "Professor of Practice", NOT lecturers unless they mention research)
+For each URL, determine:
+1. The professor's full name (from the URL slug, e.g., /john-smith/ → "John Smith")
+2. Whether they are likely research-active (assume yes unless URL suggests emeritus/adjunct/visiting/lecturer)
 
-IMPORTANT CLASSIFICATION RULES:
-- Research-active: Professors, Associate Professors, Assistant Professors who conduct research
-- NOT research-active: Emeritus Professors, Professors of Practice, Lecturers (unless specifically research-focused), Visiting Professors, Adjunct Professors
+Here are the profile URLs:
+${profileUrls.map((u, i) => `${i + 1}. ${u}`).join('\n')}
 
-Page URL: ${pageUrl}
-
-Content to analyze:
-${markdown.substring(0, 30000)}
-
-Available links on the page:
-${JSON.stringify(links.slice(0, 200))}
-
-Respond with a JSON array of professors. Each professor object should have:
+Respond with a JSON array. Each object:
 {
   "name": "Full Name",
-  "email": "email@university.edu or null",
-  "profileUrl": "URL to their profile page",
-  "title": "Their academic title",
-  "isResearchActive": true/false
+  "profileUrl": "the URL",
+  "title": null,
+  "isResearchActive": true
 }
 
-Only include actual faculty members, not staff or administrators. Include ALL faculty members you can find on this page.`;
+Extract ALL professors. Include everyone.`;
 
   const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -232,15 +212,14 @@ Only include actual faculty members, not staff or administrators. Include ALL fa
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are an expert at extracting structured data from university faculty web pages. Always respond with valid JSON only. Extract EVERY faculty member listed on the page." },
-        { role: "user", content: extractionPrompt },
+        { role: "system", content: "You extract structured data from URLs. Always respond with valid JSON only." },
+        { role: "user", content: prompt },
       ],
     }),
   });
 
   if (!aiResponse.ok) {
-    const errorText = await aiResponse.text();
-    console.error('AI API error:', errorText);
+    console.error('AI API error:', await aiResponse.text());
     return [];
   }
 
@@ -250,12 +229,106 @@ Only include actual faculty members, not staff or administrators. Include ALL fa
   try {
     const jsonMatch = aiContent.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const profs = JSON.parse(jsonMatch[0]);
+      return profs.map((p: any) => {
+        const nameParts = p.name?.split(' ') || [];
+        return {
+          name: p.name || 'Unknown',
+          lastName: nameParts[nameParts.length - 1] || p.name,
+          email: p.email || null,
+          profileUrl: p.profileUrl || '',
+          title: p.title || null,
+          department: department || null,
+          imageUrl: null,
+          isResearchActive: p.isResearchActive ?? true,
+        };
+      });
     }
-  } catch (parseError) {
-    console.error('Failed to parse AI response:', parseError);
+  } catch (e) {
+    console.error('Failed to parse profile URL extraction:', e);
+  }
+  return [];
+}
+
+async function extractProfessorsFromMarkdown(
+  LOVABLE_API_KEY: string,
+  markdown: string,
+  links: string[],
+  pageUrl: string,
+  department: string | null
+): Promise<Professor[]> {
+  const extractionPrompt = `You are analyzing a university faculty directory page. Extract ALL professors/faculty members.
+
+For each professor found, extract:
+1. Full name
+2. Email address (if visible)
+3. Profile page URL (from the links provided, match by professor name)
+4. Title/position
+5. Whether they appear research-active (NOT emeritus, NOT "Professor of Practice", NOT lecturers unless research-focused)
+
+Page URL: ${pageUrl}
+
+Content:
+${markdown.substring(0, 50000)}
+
+Available links:
+${JSON.stringify(links.slice(0, 300))}
+
+Respond with a JSON array:
+{
+  "name": "Full Name",
+  "email": "email@university.edu or null",
+  "profileUrl": "URL",
+  "title": "Academic title",
+  "isResearchActive": true/false
+}
+
+Include ALL faculty members. Do not skip anyone.`;
+
+  const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: "You extract structured data from university faculty web pages. Always respond with valid JSON only. Extract EVERY faculty member." },
+        { role: "user", content: extractionPrompt },
+      ],
+    }),
+  });
+
+  if (!aiResponse.ok) {
+    console.error('AI API error:', await aiResponse.text());
+    return [];
   }
 
+  const aiData = await aiResponse.json();
+  const aiContent = aiData.choices?.[0]?.message?.content || '[]';
+
+  try {
+    const jsonMatch = aiContent.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const profs = JSON.parse(jsonMatch[0]);
+      return profs.map((p: any) => {
+        const nameParts = p.name?.split(' ') || [];
+        return {
+          name: p.name || 'Unknown',
+          lastName: nameParts[nameParts.length - 1] || p.name,
+          email: p.email || null,
+          profileUrl: p.profileUrl || '',
+          title: p.title || null,
+          department: department || null,
+          imageUrl: null,
+          isResearchActive: p.isResearchActive ?? true,
+        };
+      });
+    }
+  } catch (e) {
+    console.error('Failed to parse markdown extraction:', e);
+  }
   return [];
 }
 
@@ -292,95 +365,93 @@ serve(async (req) => {
 
     console.log('Scraping faculty page:', facultyUrl);
 
-    // Step 1: Scrape the main faculty page and map the site in parallel
+    // Step 1: Scrape main page + map site in parallel
     const [mainPage, mappedUrls] = await Promise.all([
       scrapeUrl(apiKey, facultyUrl, true),
       mapSite(apiKey, facultyUrl),
     ]);
 
-    console.log(`Main page scraped. Found ${mainPage.links.length} links. Map found ${mappedUrls.length} URLs.`);
+    console.log(`Main page: ${mainPage.markdown.length} chars, ${mainPage.links.length} links. Map: ${mappedUrls.length} URLs.`);
 
-    // Step 2: Find additional pages to scrape (pagination + related faculty listing pages)
-    const allDiscoveredLinks = [...mainPage.links, ...mappedUrls];
-    const paginationUrls = findPaginationUrls(facultyUrl, allDiscoveredLinks);
-    const relatedPages = findRelatedFacultyPages(facultyUrl, mappedUrls);
-    const additionalUrls = [...new Set([...paginationUrls, ...relatedPages])].slice(0, 25);
+    // Step 2: Find individual profile URLs and listing pages
+    const allDiscoveredLinks = [...new Set([...mainPage.links, ...mappedUrls])];
+    const profileUrls = findProfileUrls(facultyUrl, allDiscoveredLinks);
+    const listingPages = findListingPages(facultyUrl, allDiscoveredLinks);
 
-    console.log(`Found ${paginationUrls.length} pagination URLs and ${relatedPages.length} related pages. Scraping ${additionalUrls.length} additional pages.`);
+    console.log(`Found ${profileUrls.length} profile URLs and ${listingPages.length} listing pages.`);
 
-    // Step 3: Scrape additional pages in parallel batches
-    const additionalPages: { markdown: string; links: string[]; url: string }[] = [];
-    const BATCH_SIZE = 5;
-    
-    for (let i = 0; i < additionalUrls.length; i += BATCH_SIZE) {
-      const batch = additionalUrls.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map(async (url) => {
-          const result = await scrapeUrl(apiKey, url);
-          return { ...result, url };
-        })
+    // Step 3: Multi-strategy extraction in parallel
+    const extractionTasks: Promise<Professor[]>[] = [];
+
+    // Strategy A: Extract from main page markdown
+    if (mainPage.markdown.length > 200) {
+      extractionTasks.push(
+        extractProfessorsFromMarkdown(LOVABLE_API_KEY, mainPage.markdown, mainPage.links, facultyUrl, department)
       );
-      additionalPages.push(...batchResults.filter(p => p.markdown.length > 100));
-      
-      // Small delay between batches to respect rate limits
-      if (i + BATCH_SIZE < additionalUrls.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Strategy B: Extract from profile URLs (batch in groups of 100)
+    if (profileUrls.length > 0) {
+      const PROFILE_BATCH = 100;
+      for (let i = 0; i < profileUrls.length; i += PROFILE_BATCH) {
+        const batch = profileUrls.slice(i, i + PROFILE_BATCH);
+        extractionTasks.push(
+          extractProfessorsFromProfiles(LOVABLE_API_KEY, batch, department)
+        );
       }
     }
 
-    console.log(`Successfully scraped ${additionalPages.length} additional pages`);
+    // Strategy C: Scrape additional listing pages and extract
+    if (listingPages.length > 0) {
+      const pagesToScrape = listingPages.slice(0, 15);
+      const BATCH_SIZE = 5;
 
-    // Step 4: Extract professors from all pages in parallel
-    const allPagesToProcess = [
-      { markdown: mainPage.markdown, links: mainPage.links, url: facultyUrl },
-      ...additionalPages,
-    ];
+      for (let i = 0; i < pagesToScrape.length; i += BATCH_SIZE) {
+        const batch = pagesToScrape.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(url => scrapeUrl(apiKey, url))
+        );
 
-    const extractionResults = await Promise.all(
-      allPagesToProcess.map(page => 
-        extractProfessors(LOVABLE_API_KEY, page.markdown, page.links, page.url)
-      )
-    );
+        for (let j = 0; j < batchResults.length; j++) {
+          const result = batchResults[j];
+          if (result.markdown.length > 200) {
+            extractionTasks.push(
+              extractProfessorsFromMarkdown(LOVABLE_API_KEY, result.markdown, result.links, batch[j], department)
+            );
+          }
+        }
+      }
+    }
 
-    // Step 5: Combine and deduplicate professors
-    const allProfessors = extractionResults.flat();
-    const seen = new Map<string, any>();
-    
+    // Step 4: Await all extractions and deduplicate
+    const allResults = await Promise.all(extractionTasks);
+    const allProfessors = allResults.flat();
+
+    const seen = new Map<string, Professor>();
     for (const prof of allProfessors) {
       const key = prof.name?.toLowerCase()?.trim();
-      if (key && !seen.has(key)) {
+      if (key && key !== 'unknown' && !seen.has(key)) {
         seen.set(key, prof);
+      } else if (key && seen.has(key)) {
+        // Merge: prefer entries with more data
+        const existing = seen.get(key)!;
+        if (!existing.email && prof.email) existing.email = prof.email;
+        if (!existing.profileUrl && prof.profileUrl) existing.profileUrl = prof.profileUrl;
+        if (!existing.title && prof.title) existing.title = prof.title;
       }
     }
 
     const uniqueProfessors = Array.from(seen.values());
-
-    // Process and clean up professor data
-    const processedProfessors: Professor[] = uniqueProfessors.map((prof: any) => {
-      const nameParts = prof.name?.split(' ') || [];
-      const lastName = nameParts[nameParts.length - 1] || prof.name;
-
-      return {
-        name: prof.name || 'Unknown',
-        lastName: lastName,
-        email: prof.email || null,
-        profileUrl: prof.profileUrl || '',
-        title: prof.title || null,
-        department: department || null,
-        imageUrl: null,
-        isResearchActive: prof.isResearchActive ?? true,
-      };
-    });
-
-    console.log(`Found ${processedProfessors.length} unique professors from ${allPagesToProcess.length} pages`);
+    console.log(`Found ${uniqueProfessors.length} unique professors using ${extractionTasks.length} extraction tasks`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        professors: processedProfessors,
-        total: processedProfessors.length,
-        researchActive: processedProfessors.filter((p: Professor) => p.isResearchActive).length,
-        pagesScraped: allPagesToProcess.length,
+        professors: uniqueProfessors,
+        total: uniqueProfessors.length,
+        researchActive: uniqueProfessors.filter(p => p.isResearchActive).length,
+        pagesScraped: 1 + listingPages.length,
+        profileUrlsFound: profileUrls.length,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
