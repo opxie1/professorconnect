@@ -16,19 +16,36 @@ interface Professor {
   isResearchActive: boolean;
 }
 
-async function scrapeUrl(apiKey: string, url: string): Promise<{ markdown: string; links: string[] }> {
+async function scrapeUrl(apiKey: string, url: string, useActions = false): Promise<{ markdown: string; links: string[] }> {
+  const body: Record<string, unknown> = {
+    url,
+    formats: ['markdown', 'links'],
+    onlyMainContent: true,
+    waitFor: 5000,
+  };
+
+  // For main faculty pages, scroll repeatedly to trigger lazy-loading
+  if (useActions) {
+    body.actions = [
+      { type: 'wait', milliseconds: 2000 },
+      { type: 'scroll', direction: 'down', amount: 3 },
+      { type: 'wait', milliseconds: 2000 },
+      { type: 'scroll', direction: 'down', amount: 3 },
+      { type: 'wait', milliseconds: 2000 },
+      { type: 'scroll', direction: 'down', amount: 5 },
+      { type: 'wait', milliseconds: 2000 },
+      { type: 'scroll', direction: 'down', amount: 5 },
+      { type: 'wait', milliseconds: 2000 },
+    ];
+  }
+
   const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      url,
-      formats: ['markdown', 'links'],
-      onlyMainContent: true,
-      waitFor: 3000,
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await response.json();
@@ -44,32 +61,38 @@ async function scrapeUrl(apiKey: string, url: string): Promise<{ markdown: strin
 }
 
 async function mapSite(apiKey: string, url: string): Promise<string[]> {
-  try {
-    const response = await fetch('https://api.firecrawl.dev/v1/map', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url,
-        search: 'faculty people directory',
-        limit: 100,
-        includeSubdomains: false,
-      }),
-    });
+  // Run multiple map searches to discover more pages
+  const searches = ['faculty people directory professors', 'faculty list members staff'];
+  const allLinks = new Set<string>();
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error('Firecrawl map error:', data);
-      return [];
+  await Promise.all(searches.map(async (search) => {
+    try {
+      const response = await fetch('https://api.firecrawl.dev/v1/map', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url,
+          search,
+          limit: 500,
+          includeSubdomains: true,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.links) {
+        for (const link of data.links) allLinks.add(link);
+      } else {
+        console.error('Firecrawl map error:', data);
+      }
+    } catch (err) {
+      console.error('Map failed:', err);
     }
+  }));
 
-    return data.links || [];
-  } catch (err) {
-    console.error('Map failed:', err);
-    return [];
-  }
+  return Array.from(allLinks);
 }
 
 function findPaginationUrls(baseUrl: string, allLinks: string[]): string[] {
@@ -121,7 +144,8 @@ function findRelatedFacultyPages(baseUrl: string, mappedUrls: string[]): string[
   const base = new URL(baseUrl);
   const basePath = base.pathname.replace(/\/$/, '');
   
-  const facultyKeywords = ['faculty', 'people', 'staff', 'directory', 'professors', 'members'];
+  const facultyKeywords = ['faculty', 'people', 'staff', 'directory', 'professors', 'members', 'department'];
+  const profileKeywords = ['profile', 'bio', 'cv', 'vitae', 'resume'];
   const seen = new Set<string>();
   seen.add(baseUrl);
   const related: string[] = [];
@@ -133,18 +157,21 @@ function findRelatedFacultyPages(baseUrl: string, mappedUrls: string[]): string[
       
       const linkPath = linkUrl.pathname.replace(/\/$/, '');
       
-      // Skip if it's the same page or an individual profile page (too deep)
+      // Skip if it's the same page
       if (linkPath === basePath) continue;
       
-      // Include pages that are siblings or children of the base path with faculty keywords
+      // Skip individual profile pages (they have query params like ?id= or very deep paths)
+      const isProfile = profileKeywords.some(k => linkPath.toLowerCase().includes(k)) || 
+                        linkUrl.search.includes('id=');
+      if (isProfile) continue;
+
+      // Include pages that share a common ancestor or have faculty keywords
       const isChild = linkPath.startsWith(basePath + '/');
       const hasFacultyKeyword = facultyKeywords.some(k => linkPath.toLowerCase().includes(k));
-      
-      // Only include listing pages (not individual profiles - those tend to be deeper)
       const pathDepth = linkPath.split('/').filter(Boolean).length;
-      const baseDepth = basePath.split('/').filter(Boolean).length;
       
-      if ((isChild && pathDepth <= baseDepth + 1) || (hasFacultyKeyword && pathDepth <= baseDepth + 1)) {
+      // Allow deeper paths (up to depth 6) as long as they look like listing pages
+      if ((isChild || hasFacultyKeyword) && pathDepth <= 6) {
         if (!seen.has(link)) {
           seen.add(link);
           related.push(link);
@@ -155,7 +182,7 @@ function findRelatedFacultyPages(baseUrl: string, mappedUrls: string[]): string[
     }
   }
 
-  return related.slice(0, 10); // Limit to avoid excessive scraping
+  return related.slice(0, 20);
 }
 
 async function extractProfessors(
@@ -267,7 +294,7 @@ serve(async (req) => {
 
     // Step 1: Scrape the main faculty page and map the site in parallel
     const [mainPage, mappedUrls] = await Promise.all([
-      scrapeUrl(apiKey, facultyUrl),
+      scrapeUrl(apiKey, facultyUrl, true),
       mapSite(apiKey, facultyUrl),
     ]);
 
@@ -277,7 +304,7 @@ serve(async (req) => {
     const allDiscoveredLinks = [...mainPage.links, ...mappedUrls];
     const paginationUrls = findPaginationUrls(facultyUrl, allDiscoveredLinks);
     const relatedPages = findRelatedFacultyPages(facultyUrl, mappedUrls);
-    const additionalUrls = [...new Set([...paginationUrls, ...relatedPages])].slice(0, 15);
+    const additionalUrls = [...new Set([...paginationUrls, ...relatedPages])].slice(0, 25);
 
     console.log(`Found ${paginationUrls.length} pagination URLs and ${relatedPages.length} related pages. Scraping ${additionalUrls.length} additional pages.`);
 
