@@ -16,23 +16,14 @@ interface Professor {
   isResearchActive: boolean;
 }
 
-async function scrapeUrl(apiKey: string, url: string, useActions = false): Promise<{ markdown: string; links: string[] }> {
+async function scrapeUrl(apiKey: string, url: string): Promise<{ markdown: string; links: string[] }> {
   const body: Record<string, unknown> = {
     url,
     formats: ['markdown', 'links'],
     onlyMainContent: true,
-    waitFor: 3000,
+    waitFor: 5000,
+    timeout: 30000,
   };
-
-  if (useActions) {
-    // Aggressive scrolling to load all lazy content
-    const scrollActions: unknown[] = [];
-    for (let i = 0; i < 15; i++) {
-      scrollActions.push({ type: 'scroll', direction: 'down', amount: 10 });
-      scrollActions.push({ type: 'wait', milliseconds: 1500 });
-    }
-    body.actions = scrollActions;
-  }
 
   const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
     method: 'POST',
@@ -44,7 +35,7 @@ async function scrapeUrl(apiKey: string, url: string, useActions = false): Promi
   });
 
   const data = await response.json();
-  if (!response.ok) {
+  if (!response.ok || !data.success) {
     console.error('Firecrawl scrape error for', url, data);
     return { markdown: '', links: [] };
   }
@@ -367,7 +358,7 @@ serve(async (req) => {
 
     // Step 1: Scrape main page + map site in parallel
     const [mainPage, mappedUrls] = await Promise.all([
-      scrapeUrl(apiKey, facultyUrl, true),
+      scrapeUrl(apiKey, facultyUrl),
       mapSite(apiKey, facultyUrl),
     ]);
 
