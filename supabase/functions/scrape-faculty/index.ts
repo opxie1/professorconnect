@@ -406,42 +406,33 @@ serve(async (req) => {
     // Step 3: Multi-strategy extraction (sequential to avoid rate limits)
     const allProfessors: Professor[] = [];
 
-    // Strategy A: Extract from main page markdown
+    // Strategy A: Extract from main page markdown (primary strategy)
     if (mainPage.markdown.length > 200) {
       const result = await extractProfessorsFromMarkdown(LOVABLE_API_KEY, mainPage.markdown, mainPage.links, facultyUrl, department);
       allProfessors.push(...result);
       console.log(`Strategy A: found ${result.length} professors from main page`);
     }
 
-    // Strategy B: Extract from profile URLs (batch in groups of 100)
-    if (profileUrls.length > 0) {
-      const PROFILE_BATCH = 100;
-      for (let i = 0; i < profileUrls.length; i += PROFILE_BATCH) {
-        const batch = profileUrls.slice(i, i + PROFILE_BATCH);
-        const result = await extractProfessorsFromProfiles(LOVABLE_API_KEY, batch, department);
-        allProfessors.push(...result);
-        console.log(`Strategy B batch: found ${result.length} professors from profile URLs`);
-      }
+    // Strategy B: Extract from profile URLs only if Strategy A found few results
+    if (allProfessors.length < 3 && profileUrls.length > 0) {
+      await new Promise(r => setTimeout(r, 2000)); // rate limit cooldown
+      const batch = profileUrls.slice(0, 100);
+      const result = await extractProfessorsFromProfiles(LOVABLE_API_KEY, batch, department);
+      allProfessors.push(...result);
+      console.log(`Strategy B: found ${result.length} professors from profile URLs`);
     }
 
-    // Strategy C: Scrape additional listing pages and extract
-    if (listingPages.length > 0) {
-      const pagesToScrape = listingPages.slice(0, 10);
-      const BATCH_SIZE = 3;
-
-      for (let i = 0; i < pagesToScrape.length; i += BATCH_SIZE) {
-        const batch = pagesToScrape.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(url => scrapeUrl(apiKey, url))
-        );
-
-        for (let j = 0; j < batchResults.length; j++) {
-          const result = batchResults[j];
-          if (result.markdown.length > 200) {
-            const profs = await extractProfessorsFromMarkdown(LOVABLE_API_KEY, result.markdown, result.links, batch[j], department);
-            allProfessors.push(...profs);
-            console.log(`Strategy C: found ${profs.length} professors from ${batch[j]}`);
-          }
+    // Strategy C: Scrape listing pages only if we still have very few results
+    if (allProfessors.length < 3 && listingPages.length > 0) {
+      const pagesToScrape = listingPages.slice(0, 3);
+      for (const pageUrl of pagesToScrape) {
+        await new Promise(r => setTimeout(r, 2000)); // rate limit cooldown
+        const result = await scrapeUrl(apiKey, pageUrl);
+        if (result.markdown.length > 200) {
+          const profs = await extractProfessorsFromMarkdown(LOVABLE_API_KEY, result.markdown, result.links, pageUrl, department);
+          allProfessors.push(...profs);
+          console.log(`Strategy C: found ${profs.length} professors from ${pageUrl}`);
+          if (allProfessors.length >= 3) break;
         }
       }
     }
