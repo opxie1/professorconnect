@@ -93,35 +93,49 @@ Respond with JSON only:
   "summary": "2-3 sentence summary of their research focus"
 }`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: "You are an expert at understanding academic research and summarizing it in accessible terms. Always respond with valid JSON only." },
-          { role: "user", content: analysisPrompt },
-        ],
-      }),
-    });
+    // Retry with exponential backoff for rate limits
+    let aiResponse: Response | null = null;
+    const maxRetries = 5;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: "You are an expert at understanding academic research and summarizing it in accessible terms. Always respond with valid JSON only." },
+            { role: "user", content: analysisPrompt },
+          ],
+        }),
+      });
 
-    if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
+        const waitMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+        console.log(`Rate limited on attempt ${attempt + 1}, waiting ${Math.round(waitMs)}ms`);
+        await aiResponse.text(); // consume body
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        continue;
+      }
+      break;
+    }
+
+    if (!aiResponse || !aiResponse.ok) {
+      if (aiResponse?.status === 429) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Rate limit exceeded. Please try again later.' }),
+          JSON.stringify({ success: false, error: 'Rate limit exceeded after retries. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (aiResponse.status === 402) {
+      if (aiResponse?.status === 402) {
         return new Response(
           JSON.stringify({ success: false, error: 'AI credits exhausted. Please add credits to continue.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      const errorText = await aiResponse.text();
+      const errorText = aiResponse ? await aiResponse.text() : 'No response';
       console.error('AI API error:', errorText);
       return new Response(
         JSON.stringify({ success: false, error: 'Failed to analyze research interests' }),
