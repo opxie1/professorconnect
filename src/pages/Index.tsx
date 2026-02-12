@@ -146,7 +146,7 @@ const Index = () => {
             </div>
             <Link to="/" className="hover:opacity-80 transition-opacity">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-                ProfessorConnect
+                Profectorus
               </h1>
             </Link>
             <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto">
@@ -410,7 +410,7 @@ const Index = () => {
       <footer className="border-t border-border py-8 mt-12">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            ProfessorConnect — Helping students find research opportunities | Inquiries: ethanxie@udel.edu
+            Profectorus — Helping students find research opportunities | Inquiries: ethanxie@udel.edu
           </p>
         </div>
       </footer>
