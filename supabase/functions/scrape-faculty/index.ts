@@ -194,27 +194,43 @@ Respond with a JSON array. Each object:
 
 Extract ALL professors. Include everyone.`;
 
-  const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: "You extract structured data from URLs. Always respond with valid JSON only." },
-        { role: "user", content: prompt },
-      ],
-    }),
-  });
+  let aiData: any = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: "You extract structured data from URLs. Always respond with valid JSON only." },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
 
-  if (!aiResponse.ok) {
-    console.error('AI API error:', await aiResponse.text());
-    return [];
+    if (aiResponse.status === 429) {
+      const waitMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+      console.log(`Rate limited (profiles), retrying in ${Math.round(waitMs)}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    if (!aiResponse.ok) {
+      console.error('AI API error:', await aiResponse.text());
+      return [];
+    }
+
+    aiData = await aiResponse.json();
+    break;
   }
 
-  const aiData = await aiResponse.json();
+  if (!aiData) {
+    console.error('All retries exhausted for profile extraction');
+    return [];
+  }
   const aiContent = aiData.choices?.[0]?.message?.content || '[]';
 
   try {
@@ -276,27 +292,43 @@ Respond with a JSON array:
 
 Include ALL faculty members. Do not skip anyone.`;
 
-  const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: "You extract structured data from university faculty web pages. Always respond with valid JSON only. Extract EVERY faculty member." },
-        { role: "user", content: extractionPrompt },
-      ],
-    }),
-  });
+  let aiData: any = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: "You extract structured data from university faculty web pages. Always respond with valid JSON only. Extract EVERY faculty member." },
+          { role: "user", content: extractionPrompt },
+        ],
+      }),
+    });
 
-  if (!aiResponse.ok) {
-    console.error('AI API error:', await aiResponse.text());
-    return [];
+    if (aiResponse.status === 429) {
+      const waitMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+      console.log(`Rate limited (markdown), retrying in ${Math.round(waitMs)}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    if (!aiResponse.ok) {
+      console.error('AI API error:', await aiResponse.text());
+      return [];
+    }
+
+    aiData = await aiResponse.json();
+    break;
   }
 
-  const aiData = await aiResponse.json();
+  if (!aiData) {
+    console.error('All retries exhausted for markdown extraction');
+    return [];
+  }
   const aiContent = aiData.choices?.[0]?.message?.content || '[]';
 
   try {
@@ -371,14 +403,14 @@ serve(async (req) => {
 
     console.log(`Found ${profileUrls.length} profile URLs and ${listingPages.length} listing pages.`);
 
-    // Step 3: Multi-strategy extraction in parallel
-    const extractionTasks: Promise<Professor[]>[] = [];
+    // Step 3: Multi-strategy extraction (sequential to avoid rate limits)
+    const allProfessors: Professor[] = [];
 
     // Strategy A: Extract from main page markdown
     if (mainPage.markdown.length > 200) {
-      extractionTasks.push(
-        extractProfessorsFromMarkdown(LOVABLE_API_KEY, mainPage.markdown, mainPage.links, facultyUrl, department)
-      );
+      const result = await extractProfessorsFromMarkdown(LOVABLE_API_KEY, mainPage.markdown, mainPage.links, facultyUrl, department);
+      allProfessors.push(...result);
+      console.log(`Strategy A: found ${result.length} professors from main page`);
     }
 
     // Strategy B: Extract from profile URLs (batch in groups of 100)
@@ -386,16 +418,16 @@ serve(async (req) => {
       const PROFILE_BATCH = 100;
       for (let i = 0; i < profileUrls.length; i += PROFILE_BATCH) {
         const batch = profileUrls.slice(i, i + PROFILE_BATCH);
-        extractionTasks.push(
-          extractProfessorsFromProfiles(LOVABLE_API_KEY, batch, department)
-        );
+        const result = await extractProfessorsFromProfiles(LOVABLE_API_KEY, batch, department);
+        allProfessors.push(...result);
+        console.log(`Strategy B batch: found ${result.length} professors from profile URLs`);
       }
     }
 
     // Strategy C: Scrape additional listing pages and extract
     if (listingPages.length > 0) {
-      const pagesToScrape = listingPages.slice(0, 15);
-      const BATCH_SIZE = 5;
+      const pagesToScrape = listingPages.slice(0, 10);
+      const BATCH_SIZE = 3;
 
       for (let i = 0; i < pagesToScrape.length; i += BATCH_SIZE) {
         const batch = pagesToScrape.slice(i, i + BATCH_SIZE);
@@ -406,17 +438,13 @@ serve(async (req) => {
         for (let j = 0; j < batchResults.length; j++) {
           const result = batchResults[j];
           if (result.markdown.length > 200) {
-            extractionTasks.push(
-              extractProfessorsFromMarkdown(LOVABLE_API_KEY, result.markdown, result.links, batch[j], department)
-            );
+            const profs = await extractProfessorsFromMarkdown(LOVABLE_API_KEY, result.markdown, result.links, batch[j], department);
+            allProfessors.push(...profs);
+            console.log(`Strategy C: found ${profs.length} professors from ${batch[j]}`);
           }
         }
       }
     }
-
-    // Step 4: Await all extractions and deduplicate
-    const allResults = await Promise.all(extractionTasks);
-    const allProfessors = allResults.flat();
 
     const seen = new Map<string, Professor>();
     for (const prof of allProfessors) {
