@@ -461,7 +461,7 @@ serve(async (req) => {
     }
 
     const uniqueProfessors = Array.from(seen.values());
-    console.log(`Found ${uniqueProfessors.length} unique professors using ${extractionTasks.length} extraction tasks`);
+    console.log(`Found ${uniqueProfessors.length} unique professors`);
 
     return new Response(
       JSON.stringify({
