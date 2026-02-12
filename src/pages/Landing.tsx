@@ -20,7 +20,7 @@ const Landing = () => {
           <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center transition-transform group-hover:scale-105">
             <GraduationCap className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground tracking-tight">ProfessorConnect</span>
+          <span className="text-xl font-bold text-foreground tracking-tight">Profectorus</span>
         </Link>
         <Link to="/app">
           <Button variant="outline" size="sm" className="gap-2">
@@ -106,7 +106,7 @@ const Landing = () => {
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            ProfessorConnect — Helping students find research opportunities
+            Profectorus — Helping students find research opportunities
           </p>
         </div>
       </footer>
