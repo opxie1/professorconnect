@@ -28,12 +28,7 @@ import {
 } from "lucide-react";
 
 const defaultUserInfo: UserInfo = {
-  name: "",
-  school: "",
-  location: "",
-  experience: "",
-  achievements: "",
-  hoursPerWeek: "30",
+  emailTemplate: "",
 };
 
 const Index = () => {
@@ -238,7 +233,7 @@ const Index = () => {
                 <Button
                   size="lg"
                   onClick={() => setStep(2)}
-                  disabled={!userInfo.name}
+                  disabled={!userInfo.emailTemplate.trim()}
                   className="gap-2"
                 >
                   Continue
