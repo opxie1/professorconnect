@@ -1,30 +1,23 @@
 import { useState, useRef } from "react";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { User, School, MapPin, Briefcase, Trophy, Clock, Save, FileText, Upload, X, Mail } from "lucide-react";
+import { Mail, Save, FileText, Upload, X } from "lucide-react";
 
 export interface UserInfo {
-  name: string;
-  school: string;
-  location: string;
-  experience: string;
-  achievements: string;
-  hoursPerWeek: string;
+  emailTemplate: string;
   resumeFileName?: string;
-  emailTemplate?: string;
 }
 
 export const DEFAULT_EMAIL_TEMPLATE = `Dear Professor {professorLastName},
 
-I hope you are doing well. My name is {yourName}, and I am currently a high school student at {yourSchool} in {yourLocation}. I am reaching out to inquire if there is a potential opportunity, paid or unpaid, for me to act as an intern or assistant for you, or if I could work alongside you with a potential research study. I am particularly interested in {researchInterests}, as well as data science and analytics.
+I hope you are doing well. My name is [Your Name], and I am currently a high school student at [Your School] in [Your Location]. I am reaching out to inquire if there is a potential opportunity, paid or unpaid, for me to act as an intern or assistant for you, or if I could work alongside you with a potential research study. I am particularly interested in {researchInterests}, as well as data science and analytics.
 
-{yourExperience}
+[Your experience here]
 
-{yourAchievements}
+[Your achievements here]
 
-I am very enthusiastic about contributing to a potential research study or assisting you with your work, and I am confident that my experience would make me a valuable addition. I am willing to contribute up to {hoursPerWeek} hours a week to assist with any tasks or projects you may need help with.
+I am very enthusiastic about contributing to a potential research study or assisting you with your work, and I am confident that my experience would make me a valuable addition. I am willing to contribute up to 30 hours a week to assist with any tasks or projects you may need help with.
 
 I would greatly appreciate your consideration if there is an opportunity for me. I thank you for your time and would be honored to discuss any potential opportunities with you further. Please let me know if there is a good time for us to meet or if you would like me to provide any documents or materials.
 
@@ -33,7 +26,7 @@ Additionally, I have attached my resume, which outlines more of my experience an
 Hope to hear from you soon.
 
 Sincerely,
-{yourName}`;
+[Your Name]`;
 
 interface UserInfoFormProps {
   userInfo: UserInfo;
@@ -44,12 +37,8 @@ interface UserInfoFormProps {
 }
 
 export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resumeFile }: UserInfoFormProps) {
-  const [isEditing, setIsEditing] = useState(!userInfo.name);
+  const [isEditing, setIsEditing] = useState(!userInfo.emailTemplate);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleChange = (field: keyof UserInfo, value: string) => {
-    onChange({ ...userInfo, [field]: value });
-  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -73,22 +62,24 @@ export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resum
     onSave?.();
   };
 
-  if (!isEditing && userInfo.name) {
+  if (!isEditing && userInfo.emailTemplate) {
     return (
       <Card className="shadow-card">
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-                <User className="h-6 w-6 text-primary-foreground" />
+                <Mail className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="font-semibold text-foreground">{userInfo.name}</p>
-                <p className="text-sm text-muted-foreground">{userInfo.school}</p>
+                <p className="font-semibold text-foreground">Email Template Saved</p>
+                <p className="text-sm text-muted-foreground line-clamp-1">
+                  {userInfo.emailTemplate.substring(0, 80)}...
+                </p>
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-              Edit Info
+              Edit Template
             </Button>
           </div>
         </CardContent>
@@ -100,90 +91,31 @@ export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resum
     <Card className="shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <User className="h-5 w-5 text-primary" />
-          Your Information
+          <Mail className="h-5 w-5 text-primary" />
+          Email Template
         </CardTitle>
         <CardDescription>
-          This information will be used to personalize your cold emails
+          Write your complete cold email below. Use <code className="bg-muted px-1 py-0.5 rounded text-foreground font-mono">{'{curly brackets}'}</code> around 
+          any content you want AI to fill in from the professor's profile — e.g. <code className="bg-muted px-1 py-0.5 rounded text-foreground font-mono">{'{researchInterests}'}</code> or <code className="bg-muted px-1 py-0.5 rounded text-foreground font-mono">{'{professorLastName}'}</code>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
-              Your Name
-            </label>
-            <Input
-              placeholder="Ethan Xie"
-              value={userInfo.name}
-              onChange={(e) => handleChange("name", e.target.value)}
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <School className="h-4 w-4 text-muted-foreground" />
-              Your School
-            </label>
-            <Input
-              placeholder="The Charter School of Wilmington"
-              value={userInfo.school}
-              onChange={(e) => handleChange("school", e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              Location
-            </label>
-            <Input
-              placeholder="Wilmington, Delaware"
-              value={userInfo.location}
-              onChange={(e) => handleChange("location", e.target.value)}
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              Hours Available per Week
-            </label>
-            <Input
-              placeholder="30"
-              value={userInfo.hoursPerWeek}
-              onChange={(e) => handleChange("hoursPerWeek", e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
-            Experience (write in first person)
-          </label>
-          <Textarea
-            placeholder="I currently work with the Lemelson–MIT Program, assisting in the development of a Bluetooth-enabled ostomy leak alert..."
-            value={userInfo.experience}
-            onChange={(e) => handleChange("experience", e.target.value)}
-            rows={4}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-            Key Achievements (write in first person)
-          </label>
-          <Textarea
-            placeholder="I also placed 2nd out of 250 teams internationally in the Financial Portfolio Management competition..."
-            value={userInfo.achievements}
-            onChange={(e) => handleChange("achievements", e.target.value)}
-            rows={4}
-          />
+        <Textarea
+          placeholder={DEFAULT_EMAIL_TEMPLATE}
+          value={userInfo.emailTemplate}
+          onChange={(e) => onChange({ ...userInfo, emailTemplate: e.target.value })}
+          rows={18}
+          className="font-mono text-xs leading-relaxed"
+        />
+        
+        <div className="p-3 bg-muted/50 border border-border rounded-lg space-y-1">
+          <p className="text-xs font-medium text-foreground">Placeholder examples:</p>
+          <p className="text-xs text-muted-foreground">
+            <code className="bg-background px-1 rounded">{'{professorLastName}'}</code> — professor's last name  ·  
+            <code className="bg-background px-1 rounded">{'{researchInterests}'}</code> — their research areas  ·  
+            <code className="bg-background px-1 rounded">{'{recentPublication}'}</code> — a recent paper  ·  
+            or any custom placeholder you define
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -228,45 +160,11 @@ export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resum
               </Button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Note: You'll need to manually attach this resume in Gmail after the draft opens
-          </p>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            <Mail className="h-4 w-4 text-muted-foreground" />
-            Email Template
-          </label>
-          <p className="text-xs text-muted-foreground">
-            Use <code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{placeholder}'}</code> syntax for dynamic content. 
-            AI will fill placeholders like <code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{researchInterests}'}</code> from the professor's profile. 
-            Your info placeholders (<code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{yourName}'}</code>, <code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{yourSchool}'}</code>, etc.) are filled automatically.
-          </p>
-          <Textarea
-            placeholder={DEFAULT_EMAIL_TEMPLATE}
-            value={userInfo.emailTemplate || ""}
-            onChange={(e) => handleChange("emailTemplate", e.target.value)}
-            rows={12}
-            className="font-mono text-xs"
-          />
-          {userInfo.emailTemplate && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleChange("emailTemplate", "")}
-              className="text-muted-foreground"
-            >
-              Reset to default template
-            </Button>
-          )}
-        </div>
-
-
-        <Button onClick={handleSave} className="w-full gap-2">
+        <Button onClick={handleSave} disabled={!userInfo.emailTemplate.trim()} className="w-full gap-2">
           <Save className="h-4 w-4" />
-          Save Information
+          Save Template
         </Button>
       </CardContent>
     </Card>

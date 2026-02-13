@@ -21,12 +21,8 @@ import { cn } from "@/lib/utils";
 interface ProfessorCardProps {
   professor: Professor;
   userInfo?: {
-    name?: string;
-    school?: string;
-    location?: string;
-    experience?: string;
-    achievements?: string;
-    hoursPerWeek?: string;
+    emailTemplate: string;
+    resumeFileName?: string;
   };
   resumeFile?: File | null;
   onEmailGenerated?: (professor: Professor, subject: string, body: string) => void;
@@ -118,7 +114,7 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
 
     setIsGenerating(true);
     try {
-      const result = await generateEmail(professor.lastName, researchData.interests, userInfo);
+      const result = await generateEmail(professor.lastName, researchData.interests, userInfo?.emailTemplate);
       
       if (result.success && result.subject && result.body) {
         setEmailData({

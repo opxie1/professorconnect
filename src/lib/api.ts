@@ -67,18 +67,10 @@ export async function analyzeResearch(profileUrl: string, professorName: string)
 export async function generateEmail(
   professorLastName: string, 
   researchInterests: string,
-  userInfo?: {
-    name?: string;
-    school?: string;
-    location?: string;
-    experience?: string;
-    achievements?: string;
-    hoursPerWeek?: string;
-    emailTemplate?: string;
-  }
+  emailTemplate?: string
 ): Promise<GenerateEmailResponse> {
   const { data, error } = await supabase.functions.invoke('generate-email', {
-    body: { professorLastName, researchInterests, userInfo, emailTemplate: userInfo?.emailTemplate },
+    body: { professorLastName, researchInterests, emailTemplate },
   });
 
   if (error) {
