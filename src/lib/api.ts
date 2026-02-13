@@ -74,10 +74,11 @@ export async function generateEmail(
     experience?: string;
     achievements?: string;
     hoursPerWeek?: string;
+    emailTemplate?: string;
   }
 ): Promise<GenerateEmailResponse> {
   const { data, error } = await supabase.functions.invoke('generate-email', {
-    body: { professorLastName, researchInterests, userInfo },
+    body: { professorLastName, researchInterests, userInfo, emailTemplate: userInfo?.emailTemplate },
   });
 
   if (error) {

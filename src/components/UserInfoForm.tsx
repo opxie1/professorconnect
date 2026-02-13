@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { User, School, MapPin, Briefcase, Trophy, Clock, Save, FileText, Upload, X } from "lucide-react";
+import { User, School, MapPin, Briefcase, Trophy, Clock, Save, FileText, Upload, X, Mail } from "lucide-react";
 
 export interface UserInfo {
   name: string;
@@ -13,7 +13,27 @@ export interface UserInfo {
   achievements: string;
   hoursPerWeek: string;
   resumeFileName?: string;
+  emailTemplate?: string;
 }
+
+export const DEFAULT_EMAIL_TEMPLATE = `Dear Professor {professorLastName},
+
+I hope you are doing well. My name is {yourName}, and I am currently a high school student at {yourSchool} in {yourLocation}. I am reaching out to inquire if there is a potential opportunity, paid or unpaid, for me to act as an intern or assistant for you, or if I could work alongside you with a potential research study. I am particularly interested in {researchInterests}, as well as data science and analytics.
+
+{yourExperience}
+
+{yourAchievements}
+
+I am very enthusiastic about contributing to a potential research study or assisting you with your work, and I am confident that my experience would make me a valuable addition. I am willing to contribute up to {hoursPerWeek} hours a week to assist with any tasks or projects you may need help with.
+
+I would greatly appreciate your consideration if there is an opportunity for me. I thank you for your time and would be honored to discuss any potential opportunities with you further. Please let me know if there is a good time for us to meet or if you would like me to provide any documents or materials.
+
+Additionally, I have attached my resume, which outlines more of my experience and background.
+
+Hope to hear from you soon.
+
+Sincerely,
+{yourName}`;
 
 interface UserInfoFormProps {
   userInfo: UserInfo;
@@ -212,6 +232,37 @@ export function UserInfoForm({ userInfo, onChange, onSave, onResumeChange, resum
             Note: You'll need to manually attach this resume in Gmail after the draft opens
           </p>
         </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium flex items-center gap-2">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            Email Template
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Use <code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{placeholder}'}</code> syntax for dynamic content. 
+            AI will fill placeholders like <code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{researchInterests}'}</code> from the professor's profile. 
+            Your info placeholders (<code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{yourName}'}</code>, <code className="bg-muted px-1 py-0.5 rounded text-foreground">{'{yourSchool}'}</code>, etc.) are filled automatically.
+          </p>
+          <Textarea
+            placeholder={DEFAULT_EMAIL_TEMPLATE}
+            value={userInfo.emailTemplate || ""}
+            onChange={(e) => handleChange("emailTemplate", e.target.value)}
+            rows={12}
+            className="font-mono text-xs"
+          />
+          {userInfo.emailTemplate && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleChange("emailTemplate", "")}
+              className="text-muted-foreground"
+            >
+              Reset to default template
+            </Button>
+          )}
+        </div>
+
 
         <Button onClick={handleSave} className="w-full gap-2">
           <Save className="h-4 w-4" />
