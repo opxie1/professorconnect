@@ -14,10 +14,10 @@ import { University } from "@/data/universities";
 import { Professor, scrapeFaculty } from "@/lib/api";
 import { ScrapingProgress } from "@/components/ScrapingProgress";
 import { useToast } from "@/components/ui/use-toast";
-import { 
-  Search, 
-  GraduationCap, 
-  Mail, 
+import {
+  Search,
+  GraduationCap,
+  Mail,
   Sparkles,
   Loader2,
   Users,
@@ -26,11 +26,9 @@ import {
   ArrowRight,
   CheckCircle2
 } from "lucide-react";
-
 const defaultUserInfo: UserInfo = {
   emailTemplate: "",
 };
-
 const Index = () => {
   const [step, setStep] = useState(1);
   const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null);
@@ -44,8 +42,10 @@ const Index = () => {
   const [analyzeQueue, setAnalyzeQueue] = useState<Set<string>>(new Set());
   const [analyzedCount, setAnalyzedCount] = useState(0);
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
+  const [emailQueue, setEmailQueue] = useState<Set<string>>(new Set());
+  const [emailQueueCount, setEmailQueueCount] = useState(0);
+  const [isGeneratingAllEmails, setIsGeneratingAllEmails] = useState(false);
   const { toast } = useToast();
-
   // Load user info from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("professorConnect_userInfo");
@@ -57,7 +57,6 @@ const Index = () => {
       }
     }
   }, []);
-
   const handleScrapeFaculty = async () => {
     if (!facultyUrl) {
       toast({
@@ -67,11 +66,9 @@ const Index = () => {
       });
       return;
     }
-
     setIsLoading(true);
     try {
       const result = await scrapeFaculty(facultyUrl, selectedDepartment);
-      
       if (result.success && result.professors) {
         setProfessors(result.professors);
         setStep(3);
@@ -93,11 +90,9 @@ const Index = () => {
       setIsLoading(false);
     }
   };
-
   const handleEmailGenerated = () => {
     setEmailsGenerated((prev) => prev + 1);
   };
-
   const handleAnalyzeAll = () => {
     const names = new Set(researchActiveProfessors.map((p) => p.name));
     setAnalyzeQueue(names);
@@ -108,7 +103,6 @@ const Index = () => {
       description: `Starting analysis for ${names.size} research-active professors...`,
     });
   };
-
   const handleAnalysisComplete = (professorName: string) => {
     setAnalyzedCount((prev) => {
       const next = prev + 1;
@@ -122,17 +116,38 @@ const Index = () => {
       return next;
     });
   };
-
+  const handleGenerateAllEmails = () => {
+    const names = new Set(researchActiveProfessors.map((p) => p.name));
+    setEmailQueue(names);
+    setEmailQueueCount(0);
+    setIsGeneratingAllEmails(true);
+    toast({
+      title: "Generating all emails",
+      description: `Starting email generation for ${names.size} professors...`,
+    });
+  };
+  const handleEmailComplete = (professorName: string) => {
+    setEmailQueueCount((prev) => {
+      const next = prev + 1;
+      if (next >= emailQueue.size) {
+        setIsGeneratingAllEmails(false);
+        toast({
+          title: "All emails generated",
+          description: `Finished generating ${emailQueue.size} emails and opening them in Gmail.`,
+        });
+      }
+      return next;
+    });
+  };
   const researchActiveProfessors = professors.filter((p) => p.isResearchActive);
   const otherProfessors = professors.filter((p) => !p.isResearchActive);
-
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <header className="gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-12 sm:py-16">
           <div className="max-w-3xl mx-auto text-center space-y-4">
-          <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="flex items-center justify-center gap-2 mb-4">
               <Link to="/" className="flex items-center gap-2 group">
                 <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center transition-transform group-hover:scale-105">
                   <GraduationCap className="h-7 w-7" />
@@ -147,7 +162,6 @@ const Index = () => {
             <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto">
               Automate your cold-email outreach to professors. Find research opportunities, internships, and mentorship.
             </p>
-            
             {/* Stats */}
             <div className="flex flex-wrap items-center justify-center gap-6 pt-6">
               <div className="flex items-center gap-2 text-white/90">
@@ -166,7 +180,6 @@ const Index = () => {
           </div>
         </div>
       </header>
-
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 sm:py-12">
         <div className="max-w-4xl mx-auto space-y-8">
@@ -177,27 +190,24 @@ const Index = () => {
                 <button
                   onClick={() => s < step && setStep(s)}
                   disabled={s > step}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                    s === step
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${s === step
                       ? "gradient-primary text-primary-foreground shadow-elevated"
                       : s < step
-                      ? "bg-success text-success-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }`}
+                        ? "bg-success text-success-foreground"
+                        : "bg-muted text-muted-foreground"
+                    }`}
                 >
                   {s < step ? <CheckCircle2 className="h-5 w-5" /> : s}
                 </button>
                 {s < 3 && (
                   <div
-                    className={`hidden sm:block w-16 h-1 rounded-full ${
-                      s < step ? "bg-success" : "bg-muted"
-                    }`}
+                    className={`hidden sm:block w-16 h-1 rounded-full ${s < step ? "bg-success" : "bg-muted"
+                      }`}
                   />
                 )}
               </div>
             ))}
           </div>
-
           {/* Step Labels */}
           <div className="flex items-center justify-center gap-8 sm:gap-16 text-sm">
             <span className={step >= 1 ? "text-foreground font-medium" : "text-muted-foreground"}>
@@ -210,12 +220,11 @@ const Index = () => {
               Generate Emails
             </span>
           </div>
-
           {/* Step 1: User Info */}
           {step === 1 && (
             <div className="space-y-6 animate-slide-up">
-              <UserInfoForm 
-                userInfo={userInfo} 
+              <UserInfoForm
+                userInfo={userInfo}
                 onChange={setUserInfo}
                 onSave={() => {
                   toast({
@@ -226,9 +235,7 @@ const Index = () => {
                 resumeFile={resumeFile}
                 onResumeChange={setResumeFile}
               />
-              
               <GmailConnection />
-              
               <div className="flex justify-end">
                 <Button
                   size="lg"
@@ -242,7 +249,6 @@ const Index = () => {
               </div>
             </div>
           )}
-
           {/* Step 2: University & Department Selection */}
           {step === 2 && (
             <div className="space-y-6 animate-slide-up">
@@ -267,18 +273,15 @@ const Index = () => {
                       selectedUniversity={selectedUniversity}
                     />
                   </div>
-
                   <DepartmentSelect
                     value={selectedDepartment}
                     onValueChange={setSelectedDepartment}
                   />
-
                   <FacultyUrlInput
                     value={facultyUrl}
                     onChange={setFacultyUrl}
                     universityName={selectedUniversity?.name}
                   />
-
                   <Button
                     size="lg"
                     onClick={handleScrapeFaculty}
@@ -297,13 +300,11 @@ const Index = () => {
                       </>
                     )}
                   </Button>
-
                   {isLoading && <ScrapingProgress />}
                 </CardContent>
               </Card>
             </div>
           )}
-
           {/* Step 3: Professor List */}
           {step === 3 && professors.length > 0 && (
             <div className="space-y-6 animate-slide-up">
@@ -320,7 +321,6 @@ const Index = () => {
                   Search Another
                 </Button>
               </div>
-
               <Tabs defaultValue="research" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="research" className="gap-2">
@@ -332,28 +332,43 @@ const Index = () => {
                     Others ({otherProfessors.length})
                   </TabsTrigger>
                 </TabsList>
-
                 <TabsContent value="research" className="mt-6">
                   <div className="grid gap-4">
                     {researchActiveProfessors.length > 0 && (
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">
                           {isAnalyzingAll && `Analyzing... ${analyzedCount}/${analyzeQueue.size}`}
+                          {isGeneratingAllEmails && `Generating emails... ${emailQueueCount}/${emailQueue.size}`}
                         </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleAnalyzeAll}
-                          disabled={isAnalyzingAll}
-                          className="gap-2"
-                        >
-                          {isAnalyzingAll ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-4 w-4" />
-                          )}
-                          {isAnalyzingAll ? `Analyzing ${analyzedCount}/${analyzeQueue.size}` : "Analyze All"}
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleAnalyzeAll}
+                            disabled={isAnalyzingAll || isGeneratingAllEmails}
+                            className="gap-2"
+                          >
+                            {isAnalyzingAll ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-4 w-4" />
+                            )}
+                            {isAnalyzingAll ? `Analyzing ${analyzedCount}/${analyzeQueue.size}` : "Analyze All"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleGenerateAllEmails}
+                            disabled={isAnalyzingAll || isGeneratingAllEmails}
+                            className="gap-2"
+                          >
+                            {isGeneratingAllEmails ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4" />
+                            )}
+                            {isGeneratingAllEmails ? `Generating ${emailQueueCount}/${emailQueue.size}` : "Generate & Open All Emails"}
+                          </Button>
+                        </div>
                       </div>
                     )}
                     {researchActiveProfessors.length === 0 ? (
@@ -370,12 +385,13 @@ const Index = () => {
                           onEmailGenerated={handleEmailGenerated}
                           shouldAnalyze={analyzeQueue.has(professor.name)}
                           onAnalysisComplete={handleAnalysisComplete}
+                          shouldGenerateEmail={emailQueue.has(professor.name)}
+                          onEmailComplete={handleEmailComplete}
                         />
                       ))
                     )}
                   </div>
                 </TabsContent>
-
                 <TabsContent value="other" className="mt-6">
                   <div className="grid gap-4">
                     {otherProfessors.length === 0 ? (
@@ -400,7 +416,6 @@ const Index = () => {
           )}
         </div>
       </main>
-
       {/* Footer */}
       <footer className="border-t border-border py-8 mt-12">
         <div className="container mx-auto px-4 text-center">
@@ -412,5 +427,4 @@ const Index = () => {
     </div>
   );
 };
-
 export default Index;
