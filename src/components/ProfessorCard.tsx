@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Professor, analyzeResearch, generateEmail, generateGmailDraftUrl, createGmailDraft } from "@/lib/api";
 import { getGmailAccessToken, isGmailConnected } from "@/lib/gmail-auth";
-import { 
-  User, 
-  Mail, 
-  ExternalLink, 
-  Sparkles, 
-  Loader2, 
+import {
+  User,
+  Mail,
+  ExternalLink,
+  Sparkles,
+  Loader2,
   CheckCircle2,
   FlaskConical,
   FileText,
@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-
 interface ProfessorCardProps {
   professor: Professor;
   userInfo?: {
@@ -28,9 +27,10 @@ interface ProfessorCardProps {
   onEmailGenerated?: (professor: Professor, subject: string, body: string) => void;
   shouldAnalyze?: boolean;
   onAnalysisComplete?: (professorName: string) => void;
+  shouldGenerateEmail?: boolean;
+  onEmailComplete?: (professorName: string) => void;
 }
-
-export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerated, shouldAnalyze, onAnalysisComplete }: ProfessorCardProps) {
+export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerated, shouldAnalyze, onAnalysisComplete, shouldGenerateEmail, onEmailComplete }: ProfessorCardProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
@@ -45,7 +45,7 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
   } | null>(null);
   const { toast } = useToast();
   const hasTriggeredAnalyze = useRef(false);
-
+  const hasTriggeredEmail = useRef(false);
   useEffect(() => {
     if (shouldAnalyze && !researchData && !isAnalyzing && !hasTriggeredAnalyze.current && professor.profileUrl) {
       hasTriggeredAnalyze.current = true;
@@ -57,6 +57,18 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
       onAnalysisComplete?.(professor.name);
     }
   }, [shouldAnalyze]);
+  useEffect(() => {
+    if (shouldGenerateEmail && researchData && !emailData && !isGenerating && !hasTriggeredEmail.current) {
+      hasTriggeredEmail.current = true;
+      handleGenerateEmail().then(() => {
+        onEmailComplete?.(professor.name);
+      });
+    } else if (shouldGenerateEmail && !researchData && !hasTriggeredEmail.current) {
+      // No research data available, skip this professor
+      hasTriggeredEmail.current = true;
+      onEmailComplete?.(professor.name);
+    }
+  }, [shouldGenerateEmail, researchData]);
   const handleAnalyze = async () => {
     if (!professor.profileUrl) {
       toast({
@@ -66,23 +78,19 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
       });
       return;
     }
-
     setIsAnalyzing(true);
     try {
       const result = await analyzeResearch(professor.profileUrl, professor.name);
-      
       if (result.success && result.researchInterests) {
         setResearchData({
           interests: result.researchInterests,
           publications: result.publications || [],
           summary: result.summary || "",
         });
-        
         // Update professor email if found
         if (result.email && !professor.email) {
           professor.email = result.email;
         }
-
         toast({
           title: "Research analyzed",
           description: `Found interests: ${result.researchInterests}`,
@@ -101,7 +109,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
       setIsAnalyzing(false);
     }
   };
-
   const handleGenerateEmail = async () => {
     if (!researchData) {
       toast({
@@ -111,18 +118,15 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
       });
       return;
     }
-
     setIsGenerating(true);
     try {
       const result = await generateEmail(professor.lastName, researchData.interests, userInfo?.emailTemplate);
-      
       if (result.success && result.subject && result.body) {
         setEmailData({
           subject: result.subject,
           body: result.body,
         });
         onEmailGenerated?.(professor, result.subject, result.body);
-        
         // Automatically open Gmail with the generated email
         if (professor.email) {
           await openInGmail(professor.email, result.subject, result.body);
@@ -147,20 +151,17 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
       setIsGenerating(false);
     }
   };
-
   const openInGmail = async (to: string, subject: string, body: string) => {
     if (isGmailConnected() && resumeFile) {
       setIsCreatingDraft(true);
       try {
         const accessToken = getGmailAccessToken();
         if (!accessToken) throw new Error("Gmail not connected");
-
         const attachmentBase64 = await fileToBase64(resumeFile);
         const result = await createGmailDraft(
           accessToken, to, subject, body,
           attachmentBase64, resumeFile.name, 'application/pdf'
         );
-
         if (result.success && result.gmailUrl) {
           window.open(result.gmailUrl, "_blank");
           toast({
@@ -191,7 +192,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
       });
     }
   };
-
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -204,7 +204,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
       reader.readAsDataURL(file);
     });
   };
-
   return (
     <Card className={cn(
       "overflow-hidden transition-all duration-300 hover:shadow-elevated",
@@ -216,7 +215,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
           <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
             <User className="h-7 w-7 text-primary" />
           </div>
-          
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -227,7 +225,7 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                   <p className="text-sm text-muted-foreground">{professor.title}</p>
                 )}
               </div>
-              <Badge 
+              <Badge
                 variant={professor.isResearchActive ? "default" : "secondary"}
                 className={cn(
                   "shrink-0",
@@ -237,14 +235,12 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                 {professor.isResearchActive ? "Research Active" : "Non-Research"}
               </Badge>
             </div>
-
             {professor.email && (
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
                 <span className="truncate">{professor.email}</span>
               </p>
             )}
-
             {professor.profileUrl && (
               <a
                 href={professor.profileUrl}
@@ -256,7 +252,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                 View Profile
               </a>
             )}
-
             {researchData && (
               <div className="mt-3 p-3 bg-success/5 border border-success/20 rounded-lg space-y-2 animate-fade-in">
                 <div className="flex items-center gap-2 text-success font-medium">
@@ -269,7 +264,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                 )}
               </div>
             )}
-
             {emailData && (
               <div className="mt-3 p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2 animate-fade-in">
                 <div className="flex items-center gap-2 text-primary font-medium">
@@ -281,7 +275,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                 </p>
               </div>
             )}
-
             <div className="flex flex-wrap gap-2 pt-2">
               {!researchData && professor.isResearchActive && (
                 <Button
@@ -299,7 +292,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                   Analyze Research
                 </Button>
               )}
-
               {researchData && !emailData && (
                 <Button
                   size="sm"
@@ -315,7 +307,6 @@ export function ProfessorCard({ professor, userInfo, resumeFile, onEmailGenerate
                   {isCreatingDraft ? "Opening Gmail..." : isGenerating ? "Generating..." : "Generate & Open in Gmail"}
                 </Button>
               )}
-
               {emailData && professor.email && (
                 <Button
                   size="sm"
